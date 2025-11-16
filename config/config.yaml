@@ -1,0 +1,78 @@
+# Proteomics Data Pipeline Configuration
+
+# Dataset configuration
+dataset_id: "PXD005011"  # Default PRIDE dataset ID
+
+# PRIDE API settings
+pride_api:
+  base_url: "https://www.ebi.ac.uk/pride/ws/archive/v2"
+  timeout: 30
+  max_retries: 3
+
+# Data processing settings
+processing:
+  # Missing value handling
+  missing_value_threshold: 0.5  # Remove proteins with >50% missing values
+  imputation_method: "mean"  # Options: mean, median, knn, min
+  
+  # Normalization
+  normalization_method: "median"  # Options: median, quantile, zscore, log2
+  log_transform: true
+  
+  # Filtering
+  min_peptides: 2  # Minimum peptides per protein
+  min_intensity: 1000  # Minimum intensity threshold
+
+# Statistical analysis settings
+analysis:
+  # Differential expression
+  alpha: 0.05  # Significance threshold
+  log2fc_threshold: 1.0  # Log2 fold-change threshold
+  multiple_testing_correction: "fdr_bh"  # Options: fdr_bh, bonferroni, none
+  
+  # Group comparison
+  control_group: "control"
+  treatment_group: "treatment"
+
+# Visualization settings
+visualization:
+  # General
+  figure_format: "png"  # Options: png, pdf, svg
+  dpi: 300
+  style: "seaborn-v0_8-whitegrid"
+  
+  # Volcano plot
+  volcano:
+    point_size: 5
+    alpha: 0.6
+    show_labels: true
+    top_n_labels: 20  # Label top N significant proteins
+  
+  # Heatmap
+  heatmap:
+    cmap: "RdBu_r"
+    cluster_rows: true
+    cluster_cols: true
+    top_n_proteins: 50  # Show top N proteins
+
+# Reporting settings
+reporting:
+  format: "html"  # Options: html, pdf
+  include_qc: true
+  include_methods: true
+
+# Logging settings
+logging:
+  level: "INFO"  # Options: DEBUG, INFO, WARNING, ERROR
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: "outputs/logs/pipeline.log"
+
+# Paths
+paths:
+  raw_data: "data/raw"
+  processed_data: "data/processed"
+  results: "data/results"
+  cache: "data/cache"
+  figures: "outputs/figures"
+  reports: "outputs/reports"
+  logs: "outputs/logs"

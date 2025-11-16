@@ -1,0 +1,83 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+venv/
+ENV/
+env/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*.ipynb_checkpoints/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.hypothesis/
+
+# Data files (don't commit large datasets)
+data/raw/*
+data/processed/*
+data/results/*
+data/cache/*
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+!data/results/.gitkeep
+!data/cache/.gitkeep
+
+# Outputs
+outputs/figures/*
+outputs/reports/*
+outputs/logs/*
+!outputs/figures/.gitkeep
+!outputs/reports/.gitkeep
+!outputs/logs/.gitkeep
+
+# Snakemake
+.snakemake/
+*.log
+
+# Docker
+*.dockerfile.swp
+
+# Environment variables
+.env
+.env.local
+
+# Logs
+*.log
+logs/
+
+# OS
+Thumbs.db
