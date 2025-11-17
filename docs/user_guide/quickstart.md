@@ -11,7 +11,7 @@ Make sure you've completed the [installation](installation.md) steps.
 ### Step 1: Download a Dataset
 
 ```bash
-python scripts/download_dataset.py --dataset-id PXD005011
+uv run python scripts/download_dataset.py --dataset-id PXD005011
 ```
 
 This will download a sample dataset from PRIDE into `data/raw/`.
@@ -20,10 +20,10 @@ This will download a sample dataset from PRIDE into `data/raw/`.
 
 ```bash
 # Dry run to see what will execute
-snakemake -n
+uv run snakemake -n
 
 # Run the full pipeline
-snakemake --cores 4
+uv run snakemake --cores 4
 ```
 
 ### Step 3: View Results
@@ -38,7 +38,7 @@ Results will be saved in:
 Alternatively, you can run the pipeline using Python scripts:
 
 ```bash
-python scripts/run_full_pipeline.py \
+uv run python scripts/run_full_pipeline.py \
     --dataset-id PXD005011 \
     --control sample1,sample2 \
     --treatment sample3,sample4

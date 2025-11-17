@@ -16,10 +16,10 @@ RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 ENV PATH="/root/.cargo/bin:${PATH}"
 
 # Copy dependency files
-COPY requirements.txt requirements-dev.txt pyproject.toml ./
+COPY pyproject.toml ./
 
 # Install Python dependencies
-RUN uv pip install --system -r requirements.txt
+RUN uv sync
 
 # Copy project files
 COPY . .
@@ -32,4 +32,4 @@ RUN mkdir -p data/raw data/processed data/results data/cache \
 ENV PYTHONPATH=/app/src:${PYTHONPATH}
 
 # Default command
-CMD ["python", "scripts/run_full_pipeline.py", "--help"]
+CMD ["snakemake", "--cores", "4"]

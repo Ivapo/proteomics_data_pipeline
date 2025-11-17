@@ -31,7 +31,7 @@ src/
 ### Prerequisites
 
 - Python 3.10+
-- UV package manager (recommended) or pip
+- UV package manager
 - Docker (optional, for containerized execution)
 
 ### Installation
@@ -42,46 +42,48 @@ src/
    cd proteomics_data_pipeline
    ```
 
-2. **Set up environment with UV** (recommended)
-   ```bash
-   # Install UV if not already installed
-   curl -LsSf https://astral.sh/uv/install.sh | sh
+2. **Install UV** (if not already installed)
    
-   # Create virtual environment and install dependencies
-   uv venv
-   source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-   uv pip install -r requirements.txt
-   uv pip install -r requirements-dev.txt  # For development
+   Windows (PowerShell):
+   ```powershell
+   powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
+   ```
+   
+   macOS/Linux:
+   ```bash
+   curl -LsSf https://astral.sh/uv/install.sh | sh
    ```
 
-3. **Or use pip**
+3. **Set up environment**
    ```bash
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   pip install -r requirements.txt
+   # Create virtual environment and install dependencies
+   uv venv
+   uv sync --extra dev
    ```
+   
+   **Note:** UV automatically manages the virtual environment. Use `uv run <command>` to run commands.
 
 ### Running the Pipeline
 
 **Option 1: Using Snakemake** (Recommended)
 ```bash
 # Run entire pipeline
-snakemake --cores 4
+uv run snakemake --cores 4
 
 # Run specific step
-snakemake analyze --cores 1
+uv run snakemake analyze --cores 1
 
 # Dry run to see what will execute
-snakemake -n
+uv run snakemake -n
 ```
 
 **Option 2: Using Python scripts**
 ```bash
 # Download a dataset
-python scripts/download_dataset.py --dataset-id PXD005011
+uv run python scripts/download_dataset.py --dataset-id PXD005011
 
 # Run full pipeline
-python scripts/run_full_pipeline.py --dataset-id PXD005011
+uv run python scripts/run_full_pipeline.py --dataset-id PXD005011
 ```
 
 **Option 3: Using Docker**

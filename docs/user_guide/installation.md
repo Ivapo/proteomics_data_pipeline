@@ -41,30 +41,21 @@ uv venv
 python -m venv venv
 ```
 
-### 4. Activate Virtual Environment
-
-**Windows (PowerShell):**
-```powershell
-.venv\Scripts\Activate.ps1
-```
-
-**macOS/Linux:**
-```bash
-source .venv/bin/activate
-```
-
-### 5. Install Dependencies
+### 4. Install Dependencies
 
 ```bash
-uv pip install -r requirements.txt
-uv pip install -r requirements-dev.txt  # For development
+uv sync --extra dev
 ```
 
-### 6. Verify Installation
+### 5. Verify Installation
+
+UV automatically manages the virtual environment - no activation needed!
 
 ```bash
-python -c "import pandas; import numpy; print('Installation successful!')"
+uv run python -c "import pandas; import numpy; print('Installation successful!')"
 ```
+
+**Note:** Use `uv run <command>` to run any command in the virtual environment.
 
 ## Docker Installation (Optional)
 

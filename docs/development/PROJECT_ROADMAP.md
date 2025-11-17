@@ -2,13 +2,13 @@
 
 This document tracks the development progress of the Proteomics Data Pipeline project, organized into epics and tasks.
 
-**Last Updated**: 2025-11-16
+**Last Updated**: 2025-11-17
 
 ---
 
 ## Overall Progress
 
-- Completed: 0 tasks
+- Completed: 15 tasks
 - In Progress: 0 tasks
 - Planned: 35 tasks
 
@@ -18,7 +18,7 @@ This document tracks the development progress of the Proteomics Data Pipeline pr
 
 **Goal**: Establish project structure, development environment, and foundational tooling.
 
-**Status**: In Progress
+**Status**: Complete
 
 ### Tasks:
 - [x] **Task 1.1**: Create folder structure (src, data, docs, tests, etc.)
@@ -31,10 +31,8 @@ This document tracks the development progress of the Proteomics Data Pipeline pr
 - [x] **Task 1.8**: Write initial README.md
 - [x] **Task 1.9**: Set up pytest configuration
 - [x] **Task 1.10**: Create LICENSE file
-- [ ] **Task 1.11**: Initialize local Git repository
-- [ ] **Task 1.12**: Create GitHub repository and push initial commit
-
-**Estimated Time**: 1 week
+- [x] **Task 1.11**: Initialize local Git repository
+- [x] **Task 1.12**: Create GitHub repository and push initial commit
 
 ---
 
@@ -42,13 +40,13 @@ This document tracks the development progress of the Proteomics Data Pipeline pr
 
 **Goal**: Build module to interact with PRIDE API and download proteomics datasets.
 
-**Status**: Not Started
+**Status**: In Progress
 
 ### Tasks:
-- [ ] **Task 2.1**: Research PRIDE REST API endpoints and authentication
-- [ ] **Task 2.2**: Implement PRIDEClient class with basic API calls
-- [ ] **Task 2.3**: Add dataset metadata retrieval functionality
-- [ ] **Task 2.4**: Implement file download with progress tracking
+- [x] **Task 2.1**: Research PRIDE REST API endpoints and authentication
+- [x] **Task 2.2**: Implement PRIDEClient class with basic API calls
+- [x] **Task 2.3**: Add dataset metadata retrieval functionality
+- [x] **Task 2.4**: Implement file download with progress tracking
 - [ ] **Task 2.5**: Add caching mechanism for API responses
 - [ ] **Task 2.6**: Create file parser for mzTab format
 - [ ] **Task 2.7**: Add support for CSV/TSV proteomics files
