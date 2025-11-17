@@ -8,7 +8,7 @@ This document tracks the development progress of the Proteomics Data Pipeline pr
 
 ## Overall Progress
 
-- Completed: 15 tasks
+- Completed: 16 tasks
 - In Progress: 0 tasks
 - Planned: 35 tasks
 
@@ -47,7 +47,7 @@ This document tracks the development progress of the Proteomics Data Pipeline pr
 - [x] **Task 2.2**: Implement PRIDEClient class with basic API calls
 - [x] **Task 2.3**: Add dataset metadata retrieval functionality
 - [x] **Task 2.4**: Implement file download with progress tracking
-- [ ] **Task 2.5**: Add caching mechanism for API responses
+- [x] **Task 2.5**: Add caching mechanism for API responses
 - [ ] **Task 2.6**: Create file parser for mzTab format
 - [ ] **Task 2.7**: Add support for CSV/TSV proteomics files
 - [ ] **Task 2.8**: Implement error handling and retries

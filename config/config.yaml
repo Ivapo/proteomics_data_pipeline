@@ -8,6 +8,10 @@ pride_api:
   base_url: "https://www.ebi.ac.uk/pride/ws/archive/v2"
   timeout: 30
   max_retries: 3
+  
+  # Cache settings
+  cache_enabled: true
+  cache_max_age_hours: 24  # Cache expires after 24 hours
 
 # Data processing settings
 processing:

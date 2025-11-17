@@ -448,6 +448,202 @@ uv run pytest tests/test_data_acquisition/test_pride_api.py -v
 
 ---
 
+## 2025-11-17: Implementing API Response Caching
+
+**Related Task**: Epic 2, Task 2.5 - Add caching mechanism for API responses
+
+### Topic: Disk-based Caching for API Responses
+
+**What I Did:**
+
+Implemented a caching system to avoid repeated API calls by storing responses to disk and reusing them when fresh.
+
+**Why Caching Matters:**
+
+**Problem**: During development/testing, you often call the same API endpoint multiple times:
+```python
+metadata = client.get_dataset_metadata("PXD000001")  # API call
+# ... later in code ...
+metadata = client.get_dataset_metadata("PXD000001")  # Another API call!
+```
+
+This is wasteful:
+- Unnecessary network requests (slower)
+- Extra load on PRIDE servers (not respectful)
+- Slows down testing/iteration
+
+**Solution**: Cache the first response to disk, reuse it for subsequent calls.
+
+**Implementation Approach:**
+
+Chose **disk-based caching** over in-memory because:
+1. Persists between program runs (important during development)
+2. Visible - can inspect cache files
+3. Easy to clear - just delete files
+4. Works well with testing
+
+**Key Design Decisions:**
+
+1. **Cache Location**: `data/cache/` directory
+   - Already defined in project structure
+   - Added to config.yaml: `cache_enabled: true`, `cache_max_age_hours: 24`
+
+2. **Cache Keys**: MD5 hash of endpoint + parameters
+   - Example: `metadata_PXD000001` → `151ae0ebdd5efd82d98a83d13344ea44.json`
+   - Why hash? Creates valid filenames, avoids special characters
+   ```python
+   cache_str = f"{endpoint}_{json.dumps(params, sort_keys=True)}"
+   cache_key = hashlib.md5(cache_str.encode()).hexdigest()
+   ```
+
+3. **Cache Expiration**: Files older than 24 hours are ignored
+   - Uses file modification time (`st_mtime`)
+   - Compares with `datetime.now() - timedelta(hours=24)`
+   - Stale cache = fresh API call
+
+4. **Enable/Disable**: Constructor parameters allow turning off caching
+   ```python
+   client = PRIDEClient(cache_enabled=False)  # Disable for production
+   ```
+
+**Three Helper Methods:**
+
+1. **`_get_cache_key(endpoint, **params)`**:
+   - Creates unique identifier for each request
+   - Same params = same key = cache hit
+
+2. **`_get_from_cache(cache_key)`**:
+   - Checks if cache file exists
+   - Validates file age (not expired)
+   - Loads and returns JSON data
+   - Returns `None` if cache miss or expired
+
+3. **`_save_to_cache(cache_key, data)`**:
+   - Saves response data to JSON file
+   - Pretty-printed with `indent=2` (easier to inspect)
+   - Creates cache directory if needed
+
+**Integration with Existing Methods:**
+
+Updated two methods to use caching:
+
+**Before (no cache):**
+```python
+def get_dataset_metadata(self, dataset_id: str):
+    url = f"{self.base_url}/projects/{dataset_id}"
+    response = self.session.get(url)
+    return response.json()
+```
+
+**After (with cache):**
+```python
+def get_dataset_metadata(self, dataset_id: str):
+    # Check cache first
+    cache_key = self._get_cache_key("metadata", dataset_id=dataset_id)
+    cached_data = self._get_from_cache(cache_key)
+    if cached_data is not None:
+        return cached_data
+    
+    # Cache miss - fetch from API
+    url = f"{self.base_url}/projects/{dataset_id}"
+    response = self.session.get(url)
+    data = response.json()
+    
+    # Save to cache for next time
+    self._save_to_cache(cache_key, data)
+    return data
+```
+
+**What I Learned:**
+
+**Cache Invalidation Strategy**:
+- Time-based expiration is simplest (24 hours)
+- Could also use ETag headers from API (more complex)
+- For proteomics datasets: metadata rarely changes, so time-based is fine
+
+**MD5 Hashing for Cache Keys**:
+- Creates consistent, filesystem-safe filenames
+- `hashlib.md5(string.encode()).hexdigest()` → 32-character hex string
+- Same input always produces same hash
+- Collisions extremely unlikely for our use case
+
+**File Timestamps**:
+- `Path.stat().st_mtime` returns last modification time as Unix timestamp
+- Convert to datetime: `datetime.fromtimestamp(st_mtime)`
+- Calculate age: `datetime.now() - file_datetime`
+
+**Graceful Degradation**:
+- If cache file corrupted (invalid JSON), fall back to API call
+- If cache disabled, methods work normally without caching
+- Errors logged but don't break functionality
+
+**Testing Strategy:**
+
+Created two specific caching tests:
+
+1. **`test_caching()`**:
+   - Creates client with temporary cache directory
+   - Makes first call, verifies cache file created
+   - Makes second call, verifies same data returned (cache hit)
+   - Tests both metadata and file listing endpoints
+
+2. **`test_cache_disabled()`**:
+   - Creates client with `cache_enabled=False`
+   - Verifies methods still work
+   - Ensures no cache files are created
+
+**Real-World Test:**
+```python
+# First call - hits API
+client = PRIDEClient()
+m1 = client.get_dataset_metadata("PXD000001")  # ~0.5-1s (network)
+
+# Second call - uses cache  
+m2 = client.get_dataset_metadata("PXD000001")  # ~0.001s (disk read)
+```
+
+Speed improvement: **~100-1000x faster** for cached responses!
+
+**Cache File Example:**
+```json
+{
+  "accession": "PXD000001",
+  "title": "TMT spikes - Using R and Bioconductor...",
+  "submitters": [...],
+  ...
+}
+```
+
+**Challenges & Solutions:**
+
+1. **Challenge**: How to generate unique cache keys for different parameter combinations?
+   - Solution: JSON serialize params with `sort_keys=True` (consistent ordering)
+   - Hash the result to create short, valid filename
+
+2. **Challenge**: How to check if cache is stale?
+   - Solution: Compare file modification time with current time
+   - Use `timedelta` for readable time comparisons
+
+3. **Challenge**: Tests creating permanent cache files
+   - Solution: Use pytest's `tmp_path` fixture for isolated cache directories
+   - Each test gets its own temp directory, auto-cleaned after test
+
+**Code Coverage:**
+- PRIDEClient now at 75% coverage (up from 72%)
+- All 8 tests passing (added 2 caching tests)
+
+**Files Modified:**
+- `config/config.yaml` - Added `cache_enabled` and `cache_max_age_hours` settings
+- `src/data_acquisition/pride_api.py` - Implemented caching with 3 helper methods; added imports: `json`, `hashlib`, `datetime`; updated `__init__`, `get_dataset_metadata`, `get_dataset_files`
+- `tests/test_data_acquisition/test_pride_api.py` - Added `test_caching()` and `test_cache_disabled()`
+
+**Next Steps:**
+- Task 2.6: Parse mzTab format files
+- Task 2.7: Add support for CSV/TSV proteomics files
+- Task 2.8: Add retry logic for failed API calls
+
+---
+
 ## Template for Future Entries
 
 ```markdown

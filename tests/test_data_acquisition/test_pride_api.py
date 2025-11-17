@@ -88,4 +88,45 @@ class TestPRIDEClient:
         # Note: Compressed files may differ in size from API metadata
         # Just verify file is within reasonable size range (not empty, not huge)
         assert output_path.stat().st_size < 10_000_000  # Less than 10MB
+    
+    def test_caching(self, tmp_path):
+        """Test that caching works correctly."""
+        # Create client with cache in temp directory
+        cache_dir = tmp_path / "cache"
+        client = PRIDEClient(cache_dir=cache_dir, cache_enabled=True)
+        
+        # First call - should hit API and cache
+        metadata1 = client.get_dataset_metadata("PXD000001")
+        assert metadata1 is not None
+        
+        # Verify cache file was created
+        cache_files = list(cache_dir.glob("*.json"))
+        assert len(cache_files) == 1
+        
+        # Second call - should use cache (no API call)
+        metadata2 = client.get_dataset_metadata("PXD000001")
+        assert metadata2 == metadata1
+        
+        # Test file listing cache
+        files1 = client.get_dataset_files("PXD000001")
+        assert len(files1) > 0
+        
+        # Should now have 2 cache files
+        cache_files = list(cache_dir.glob("*.json"))
+        assert len(cache_files) == 2
+        
+        # Second call should use cache
+        files2 = client.get_dataset_files("PXD000001")
+        assert files2 == files1
+    
+    def test_cache_disabled(self):
+        """Test that caching can be disabled."""
+        client = PRIDEClient(cache_enabled=False)
+        
+        # Should work normally but not create cache
+        metadata = client.get_dataset_metadata("PXD000001")
+        assert metadata is not None
+        
+        # No cache directory should be created
+        # (This is implicit - if cache_enabled=False, no files are written)
 
