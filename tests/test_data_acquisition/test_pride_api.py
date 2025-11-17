@@ -7,6 +7,8 @@ Unit tests for PRIDE API client functionality.
 import pytest
 import sys
 from pathlib import Path
+from unittest.mock import Mock, patch
+import requests
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
@@ -129,4 +131,108 @@ class TestPRIDEClient:
         
         # No cache directory should be created
         # (This is implicit - if cache_enabled=False, no files are written)
+    
+    def test_retry_on_timeout(self):
+        """Test that timeouts trigger retries."""
+        client = PRIDEClient(max_retries=3, timeout=1)
+        
+        # Mock session.get to timeout twice, then succeed
+        with patch.object(client.session, 'get') as mock_get:
+            # First two calls timeout, third succeeds
+            mock_response = Mock()
+            mock_response.json.return_value = {"accession": "TEST"}
+            mock_response.raise_for_status.return_value = None
+            
+            mock_get.side_effect = [
+                requests.Timeout("Timeout 1"),
+                requests.Timeout("Timeout 2"),
+                mock_response
+            ]
+            
+            # Should succeed after 2 retries
+            result = client._make_request_with_retry("http://test.com")
+            assert result == mock_response
+            assert mock_get.call_count == 3
+    
+    def test_retry_on_connection_error(self):
+        """Test that connection errors trigger retries."""
+        client = PRIDEClient(max_retries=2, timeout=1)
+        
+        with patch.object(client.session, 'get') as mock_get:
+            # First call fails, second succeeds
+            mock_response = Mock()
+            mock_response.raise_for_status.return_value = None
+            
+            mock_get.side_effect = [
+                requests.ConnectionError("Connection failed"),
+                mock_response
+            ]
+            
+            result = client._make_request_with_retry("http://test.com")
+            assert result == mock_response
+            assert mock_get.call_count == 2
+    
+    def test_no_retry_on_404(self):
+        """Test that 404 errors don't retry (client error)."""
+        client = PRIDEClient(max_retries=3, timeout=1)
+        
+        with patch.object(client.session, 'get') as mock_get:
+            # Create 404 response
+            mock_response = Mock()
+            mock_response.status_code = 404
+            error = requests.HTTPError(response=mock_response)
+            mock_get.return_value.raise_for_status.side_effect = error
+            
+            # Should fail immediately without retries
+            with pytest.raises(requests.HTTPError):
+                client._make_request_with_retry("http://test.com")
+            
+            # Should only try once (no retries on 4xx)
+            assert mock_get.call_count == 1
+    
+    def test_retry_on_server_error(self):
+        """Test that 5xx errors trigger retries."""
+        client = PRIDEClient(max_retries=2, timeout=1)
+        
+        with patch.object(client.session, 'get') as mock_get:
+            # First call returns 503, second succeeds
+            mock_response_error = Mock()
+            mock_response_error.status_code = 503
+            
+            mock_response_ok = Mock()
+            mock_response_ok.raise_for_status.return_value = None
+            
+            def side_effect(*args, **kwargs):
+                if mock_get.call_count == 1:
+                    raise requests.HTTPError(response=mock_response_error)
+                return mock_response_ok
+            
+            mock_get.side_effect = side_effect
+            
+            result = client._make_request_with_retry("http://test.com")
+            assert result == mock_response_ok
+            assert mock_get.call_count == 2
+    
+    def test_retry_exhaustion(self):
+        """Test that retries eventually give up."""
+        client = PRIDEClient(max_retries=2, timeout=1, backoff_factor=0.1)
+        
+        with patch.object(client.session, 'get') as mock_get:
+            # Always timeout
+            mock_get.side_effect = requests.Timeout("Always fails")
+            
+            # Should raise after exhausting retries
+            with pytest.raises(requests.Timeout):
+                client._make_request_with_retry("http://test.com")
+            
+            # Should try max_retries times
+            assert mock_get.call_count == 2
+    
+    def test_custom_retry_settings(self):
+        """Test that custom retry settings are respected."""
+        client = PRIDEClient(timeout=5, max_retries=5, backoff_factor=3.0)
+        
+        assert client.timeout == 5
+        assert client.max_retries == 5
+        assert client.backoff_factor == 3.0
 

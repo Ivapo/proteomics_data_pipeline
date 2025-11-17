@@ -8,6 +8,7 @@ pride_api:
   base_url: "https://www.ebi.ac.uk/pride/ws/archive/v2"
   timeout: 30
   max_retries: 3
+  backoff_factor: 2.0
   
   # Cache settings
   cache_enabled: true

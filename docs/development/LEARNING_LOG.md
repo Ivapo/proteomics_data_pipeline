@@ -839,6 +839,281 @@ With file parsing implemented, we can now:
 
 ---
 
+## 2025-11-18: Implementing Resilient API Calls with Retry Logic
+
+**Related Task**: Epic 2, Task 2.8 - Implement error handling and retries
+
+### Topic: Building Fault-Tolerant Network Communication
+
+Implemented automatic retry logic with exponential backoff to make the PRIDE API client resilient to transient network failures.
+
+**The Problem:**
+
+Network requests can fail for many reasons:
+- **Transient failures**: Temporary network glitches, WiFi drops
+- **Server overload**: PRIDE servers temporarily unavailable (503 Service Unavailable)
+- **Timeouts**: Slow connections, large responses taking too long
+- **Connection errors**: DNS issues, server unreachable
+
+Without retry logic, any of these would crash the entire pipeline, even though retrying might succeed.
+
+**Solution: Exponential Backoff Retry Strategy**
+
+**What is Exponential Backoff?**
+
+A retry strategy where wait time doubles after each failure:
+- Attempt 1: Fails → wait 1 second (2^0)
+- Attempt 2: Fails → wait 2 seconds (2^1)
+- Attempt 3: Fails → wait 4 seconds (2^2)
+- Attempt 4: Success!
+
+**Why exponential?**
+- Gives servers time to recover (not hammering an overloaded server)
+- Avoids thundering herd problem (many clients retrying simultaneously)
+- Industry standard (used by AWS, Google, GitHub APIs)
+
+**Implementation:**
+
+Created `_make_request_with_retry()` method:
+
+```python
+def _make_request_with_retry(self, url: str, params: Optional[Dict] = None) -> requests.Response:
+    last_exception = None
+    
+    for attempt in range(self.max_retries):
+        try:
+            response = self.session.get(url, params=params, timeout=self.timeout)
+            response.raise_for_status()
+            return response
+            
+        except requests.Timeout:
+            logger.warning(f"Request timeout (attempt {attempt + 1}/{self.max_retries})")
+        except requests.ConnectionError:
+            logger.warning(f"Connection error (attempt {attempt + 1}/{self.max_retries})")
+        except requests.HTTPError as e:
+            # Don't retry client errors (4xx)
+            if e.response.status_code < 500:
+                raise
+            # Retry server errors (5xx)
+            logger.warning(f"Server error {e.response.status_code}")
+        
+        # Exponential backoff
+        if attempt < self.max_retries - 1:
+            wait_time = self.backoff_factor ** attempt  # 1s, 2s, 4s, 8s...
+            logger.info(f"Retrying in {wait_time:.1f} seconds...")
+            time.sleep(wait_time)
+    
+    # All retries exhausted
+    raise last_exception
+```
+
+**Key Design Decisions:**
+
+**1. Selective Retrying:**
+
+Only retry errors that might be transient:
+- ✅ **Timeout** (`requests.Timeout`): Retry - might work with more time
+- ✅ **Connection Error** (`requests.ConnectionError`): Retry - network might recover
+- ✅ **Server Error (5xx)**: Retry - server might be temporarily down
+- ❌ **Client Error (4xx)**: Don't retry - request is bad, won't succeed
+
+**Example - 404 Not Found:**
+```python
+# Bad dataset ID - will NEVER work, don't waste time retrying
+client.get_dataset_metadata("PXD999999999")
+# Immediately raises ValueError (no retries)
+```
+
+**2. Configurable Parameters:**
+
+Added to `__init__`:
+```python
+def __init__(self, 
+             timeout: int = 30,        # Seconds before timeout
+             max_retries: int = 3,     # How many retry attempts
+             backoff_factor: float = 2.0):  # Multiplier for wait time
+```
+
+**3. Timeout Handling:**
+
+Added `timeout` parameter to prevent hanging forever:
+```python
+response = self.session.get(url, timeout=self.timeout)
+# Raises requests.Timeout if takes longer than 30 seconds
+```
+
+**Integration:**
+
+Updated three main API methods to use retry wrapper:
+
+```python
+# Before:
+response = self.session.get(url)
+response.raise_for_status()
+
+# After:
+response = self._make_request_with_retry(url)
+# Automatically retries on failure
+```
+
+**Configuration (config.yaml):**
+
+```yaml
+pride_api:
+  timeout: 30
+  max_retries: 3
+  backoff_factor: 2.0
+```
+
+Users can adjust based on their needs:
+- **Fast development**: `timeout: 5, max_retries: 1`
+- **Production reliability**: `timeout: 60, max_retries: 5`
+
+**Testing Strategy:**
+
+Created 6 new tests using mocking to simulate failures:
+
+**1. `test_retry_on_timeout`**: Timeout twice, succeed third time
+```python
+mock_get.side_effect = [
+    requests.Timeout("Timeout 1"),
+    requests.Timeout("Timeout 2"),
+    mock_response  # Success!
+]
+# Verifies retry count: 3
+```
+
+**2. `test_retry_on_connection_error`**: Network failure then recovery
+```python
+mock_get.side_effect = [
+    requests.ConnectionError("Connection failed"),
+    mock_response  # Success!
+]
+```
+
+**3. `test_no_retry_on_404`**: Don't retry client errors
+```python
+mock_response.status_code = 404
+# Should fail immediately, call_count == 1 (no retries)
+```
+
+**4. `test_retry_on_server_error`**: Retry on 503
+```python
+mock_response_error.status_code = 503
+# Should retry
+```
+
+**5. `test_retry_exhaustion`**: All retries fail
+```python
+mock_get.side_effect = requests.Timeout("Always fails")
+# Raises after max_retries attempts
+```
+
+**6. `test_custom_retry_settings`**: Verify configuration works
+
+**What I Learned:**
+
+**HTTP Status Code Classes:**
+- **1xx (Informational)**: Request received, continuing
+- **2xx (Success)**: Request successfully processed
+- **3xx (Redirection)**: Further action needed
+- **4xx (Client Error)**: Bad request from client - DON'T RETRY
+  - 400 Bad Request, 401 Unauthorized, 404 Not Found
+- **5xx (Server Error)**: Server failed - RETRY
+  - 500 Internal Server Error, 503 Service Unavailable
+
+**Why `response.status_code < 500`:**
+Check if it's a client error (4xx) to avoid retrying.
+
+**Mock Testing:**
+- `unittest.mock.Mock()` creates fake objects
+- `side_effect` can be list of return values (different per call)
+- `call_count` verifies how many times method was called
+- Essential for testing network code without actual network calls
+
+**Exponential Backoff Math:**
+```python
+wait_time = backoff_factor ** attempt
+# attempt 0: 2^0 = 1 second
+# attempt 1: 2^1 = 2 seconds
+# attempt 2: 2^2 = 4 seconds
+# Total: 7 seconds over 3 retries
+```
+
+**Alternative: `backoff_factor * (2 ** attempt)`:**
+- 0: 2 * 1 = 2s
+- 1: 2 * 2 = 4s
+- 2: 2 * 4 = 8s
+Both work, chose simpler formula.
+
+**Challenges & Solutions:**
+
+**1. Challenge**: How to test network failures without actual failures?
+   - Solution: Mock `session.get()` to raise specific exceptions
+
+**2. Challenge**: Server errors (5xx) should retry, client errors (4xx) shouldn't
+   - Solution: Check `e.response.status_code < 500` - only raise immediately on client errors
+
+**3. Challenge**: Testing exponential backoff timing would slow tests
+   - Solution: Use `backoff_factor=0.1` in tests for faster execution
+
+**4. Challenge**: Last exception might be `None` if no exceptions raised
+   - Solution: Initialize `last_exception = None`, only raise at end if set
+
+**Real-World Impact:**
+
+**Before (no retries):**
+```
+# User experience
+>>> client.get_dataset_metadata("PXD000001")
+ConnectionError: Connection refused
+# Pipeline crashes, user has to restart
+```
+
+**After (with retries):**
+```
+# User experience
+>>> client.get_dataset_metadata("PXD000001")
+WARNING: Request timeout (attempt 1/3)
+INFO: Retrying in 1.0 seconds...
+WARNING: Request timeout (attempt 2/3)
+INFO: Retrying in 2.0 seconds...
+INFO: Successfully retrieved metadata for PXD000001
+# Success! User doesn't even notice the hiccup
+```
+
+**Test Results:**
+- All 14 tests passing (8 original + 6 new)
+- Coverage: 78% for pride_api.py (up from 75%)
+- Total statements: 192 (up from 167 due to retry logic)
+
+**Files Modified:**
+- `src/data_acquisition/pride_api.py` - Added `time` import, timeout/retry params to `__init__`, implemented `_make_request_with_retry()`, updated 3 API methods
+- `config/config.yaml` - Added `timeout`, `max_retries`, `backoff_factor` settings
+- `tests/test_data_acquisition/test_pride_api.py` - Added `Mock` and `patch` imports, created 6 retry tests
+
+**What This Enables:**
+
+Pipeline is now resilient to:
+- Temporary network issues
+- Server overload
+- Slow connections
+- Intermittent failures
+
+Users get reliable data downloads without manual intervention.
+
+**Resources:**
+- [Exponential Backoff and Jitter](https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/)
+- [Python requests Timeout](https://requests.readthedocs.io/en/latest/user/advanced/#timeouts)
+- [unittest.mock documentation](https://docs.python.org/3/library/unittest.mock.html)
+
+**Next Steps:**
+- Task 2.9: Additional unit tests (already have 14 tests, 78% coverage - may be sufficient)
+- Task 2.10: Create demo notebook showing full workflow
+- Epic 3: Data processing module (actually work with proteomics data!)
+
+---
+
 ## Template for Future Entries
 
 ```markdown

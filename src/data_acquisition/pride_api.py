@@ -14,6 +14,7 @@ import urllib.error
 import json
 import hashlib
 from datetime import datetime, timedelta
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +32,10 @@ class PRIDEClient:
     def __init__(self, base_url: str = "https://www.ebi.ac.uk/pride/ws/archive/v2",
                  cache_dir: Optional[Path] = None,
                  cache_enabled: bool = True,
-                 cache_max_age_hours: int = 24):
+                 cache_max_age_hours: int = 24,
+                 timeout: int = 30,
+                 max_retries: int = 3,
+                 backoff_factor: float = 2.0):
         """
         Initialize PRIDE API client.
         
@@ -40,10 +44,16 @@ class PRIDEClient:
             cache_dir: Directory for caching API responses (default: data/cache)
             cache_enabled: Enable/disable caching (default: True)
             cache_max_age_hours: Maximum age of cache in hours (default: 24)
+            timeout: Request timeout in seconds (default: 30)
+            max_retries: Maximum number of retry attempts (default: 3)
+            backoff_factor: Exponential backoff multiplier (default: 2.0)
         """
         self.base_url = base_url
         self.cache_enabled = cache_enabled
         self.cache_max_age = timedelta(hours=cache_max_age_hours)
+        self.timeout = timeout
+        self.max_retries = max_retries
+        self.backoff_factor = backoff_factor
         
         # Set up cache directory
         if cache_dir is None:
@@ -110,6 +120,62 @@ class PRIDEClient:
         except Exception as e:
             logger.warning(f"Failed to save cache {cache_key}: {e}")
     
+    def _make_request_with_retry(self, url: str, params: Optional[Dict] = None) -> requests.Response:
+        """
+        Make HTTP request with exponential backoff retry logic.
+        
+        Retries on:
+        - Timeouts
+        - Connection errors
+        - Server errors (5xx)
+        
+        Does NOT retry on:
+        - Client errors (4xx) - indicates bad request, won't succeed on retry
+        
+        Args:
+            url: URL to request
+            params: Optional query parameters
+            
+        Returns:
+            Response object
+            
+        Raises:
+            requests.RequestException: If all retries exhausted
+        """
+        last_exception = None
+        
+        for attempt in range(self.max_retries):
+            try:
+                response = self.session.get(url, params=params, timeout=self.timeout)
+                response.raise_for_status()
+                return response
+                
+            except requests.Timeout as e:
+                last_exception = e
+                logger.warning(f"Request timeout (attempt {attempt + 1}/{self.max_retries}): {url}")
+                
+            except requests.ConnectionError as e:
+                last_exception = e
+                logger.warning(f"Connection error (attempt {attempt + 1}/{self.max_retries}): {url}")
+                
+            except requests.HTTPError as e:
+                # Don't retry client errors (4xx)
+                if e.response.status_code < 500:
+                    raise
+                # Retry server errors (5xx)
+                last_exception = e
+                logger.warning(f"Server error {e.response.status_code} (attempt {attempt + 1}/{self.max_retries}): {url}")
+            
+            # If not last attempt, wait with exponential backoff
+            if attempt < self.max_retries - 1:
+                wait_time = self.backoff_factor ** attempt
+                logger.info(f"Retrying in {wait_time:.1f} seconds...")
+                time.sleep(wait_time)
+        
+        # All retries exhausted
+        logger.error(f"All {self.max_retries} retry attempts failed for {url}")
+        raise last_exception
+    
     def get_dataset_metadata(self, dataset_id: str) -> Dict:
         """
         Retrieve metadata for a specific PRIDE dataset.
@@ -134,8 +200,7 @@ class PRIDEClient:
         url = f"{self.base_url}/projects/{dataset_id}"
         
         try:
-            response = self.session.get(url)
-            response.raise_for_status()
+            response = self._make_request_with_retry(url)
             
             metadata = response.json()
             logger.info(f"Successfully retrieved metadata for {dataset_id}")
@@ -179,8 +244,7 @@ class PRIDEClient:
         }
         
         try:
-            response = self.session.get(url, params=params)
-            response.raise_for_status()
+            response = self._make_request_with_retry(url, params=params)
             
             data = response.json()
             # Check if API returns list directly or nested structure
@@ -219,8 +283,7 @@ class PRIDEClient:
         url = f"{self.base_url.replace('v2', 'v3')}/projects/{dataset_id}/files"
         
         try:
-            response = self.session.get(url)
-            response.raise_for_status()
+            response = self._make_request_with_retry(url)
             
             files = response.json()
             
