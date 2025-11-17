@@ -8,7 +8,7 @@ This document tracks the development progress of the Proteomics Data Pipeline pr
 
 ## Overall Progress
 
-- Completed: 19 tasks
+- Completed: 21 tasks
 - In Progress: 0 tasks
 - Planned: 35 tasks
 
@@ -40,7 +40,7 @@ This document tracks the development progress of the Proteomics Data Pipeline pr
 
 **Goal**: Build module to interact with PRIDE API and download proteomics datasets.
 
-**Status**: In Progress
+**Status**: Complete
 
 ### Tasks:
 - [x] **Task 2.1**: Research PRIDE REST API endpoints and authentication
@@ -51,8 +51,11 @@ This document tracks the development progress of the Proteomics Data Pipeline pr
 - [x] **Task 2.6**: Create file parser for mzTab format
 - [x] **Task 2.7**: Add support for CSV/TSV proteomics files
 - [x] **Task 2.8**: Implement error handling and retries
-- [ ] **Task 2.9**: Write unit tests for data acquisition
-- [ ] **Task 2.10**: Create example notebook demonstrating data download
+- [x] **Task 2.9**: Write unit tests for data acquisition
+  - **Status**: 22 tests written, 78-79% coverage across pride_api.py and file_parser.py
+  - **Note**: Sufficient coverage for current scope. Can add integration tests if needed.
+- [x] **Task 2.10**: Create example notebook demonstrating data download
+  - **Status**: Comprehensive Jupyter notebook with 20 cells covering full workflow (search, metadata, download, parse, explore, visualize)
 
 **Dependencies**: Epic 1 complete
 
