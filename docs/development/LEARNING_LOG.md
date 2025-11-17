@@ -454,8 +454,6 @@ uv run pytest tests/test_data_acquisition/test_pride_api.py -v
 
 ### Topic: Disk-based Caching for API Responses
 
-**What I Did:**
-
 Implemented a caching system to avoid repeated API calls by storing responses to disk and reusing them when fresh.
 
 **Why Caching Matters:**
@@ -641,6 +639,203 @@ Speed improvement: **~100-1000x faster** for cached responses!
 - Task 2.6: Parse mzTab format files
 - Task 2.7: Add support for CSV/TSV proteomics files
 - Task 2.8: Add retry logic for failed API calls
+
+---
+
+## 2025-11-17: Parsing Proteomics File Formats (mzTab, CSV/TSV)
+
+**Related Task**: Epic 2, Tasks 2.6 & 2.7 - Create file parser for mzTab format and add CSV/TSV support
+
+### Topic: Parsing Structured Proteomics Data Files
+
+Implemented a `FileParser` class to read various proteomics file formats into pandas DataFrames.
+
+**mzTab File Format:**
+
+**What is mzTab?**
+- **HUPO-PSI standard** for reporting mass spectrometry results
+- Tab-delimited text format (easy to parse, human-readable)
+- Designed to be opened in Excel while remaining machine-parsable
+- Lightweight summary format (not raw data)
+
+**mzTab Structure:**
+
+mzTab files have **four main sections**, each with specific prefixes:
+
+1. **MTD (Metadata)**: File-level information
+   ```
+   MTD	mzTab-version	1.0.0
+   MTD	title	Proteomics Study of Cancer Cells
+   MTD	description	iTRAQ labeled quantification
+   MTD	ms_run[1]-location	file://data/run1.raw
+   ```
+
+2. **PRH/PRT (Protein Section)**: Protein quantification
+   ```
+   PRH	accession	description	coverage	abundance_study_variable[1]
+   PRT	P12345	Protein kinase	0.45	1234.56
+   PRT	Q67890	Hemoglobin	0.78	2345.67
+   ```
+
+3. **PEH/PEP (Peptide Section)**: Peptide-level data
+   ```
+   PEH	sequence	accession	unique	database
+   PEP	PEPTIDER	P12345	1	UniProt
+   ```
+
+4. **PSH/PSM (Peptide-Spectrum Match)**: Identification evidence
+   ```
+   PSH	sequence	PSM_ID	accession	charge
+   PSM	PEPTIDER	1	P12345	2
+   ```
+
+**Key Insight**: Each section starts with header (H suffix) then data rows (T suffix for proteins, P for peptides, M for PSMs).
+
+**Implementation Details:**
+
+**`parse_mztab(file_path)`**:
+```python
+# Read line by line, categorize by prefix
+for line in file:
+    fields = line.split('\t')
+    prefix = fields[0]
+    
+    if prefix == 'MTD':
+        metadata.append(fields)
+    elif prefix == 'PRH':
+        protein_header = fields[1:]  # Skip prefix
+    elif prefix == 'PRT':
+        protein_rows.append(fields[1:])
+
+# Convert to DataFrame
+df = pd.DataFrame(protein_rows, columns=protein_header)
+```
+
+**Key Design Decision**: Return protein DataFrame by default (most common use case for quantification analysis).
+
+**`get_mztab_metadata(file_path)`**:
+- Extracts all MTD lines into dictionary
+- Format: `MTD	key	value`
+- Useful for understanding dataset context before processing
+
+**CSV/TSV Parsing:**
+
+**`parse_tabular(file_path, delimiter=None)`**:
+- Auto-detects delimiter based on file extension
+  - `.csv` → comma
+  - `.tsv`, `.txt` → tab
+  - Unknown → peek at first line
+- Uses pandas `read_csv()` with appropriate delimiter
+- Simple but effective for standard tabular formats
+
+**Delimiter Auto-Detection Logic:**
+```python
+# Extension-based
+if suffix == '.csv':
+    delimiter = ','
+elif suffix in ['.tsv', '.txt']:
+    delimiter = '\t'
+else:
+    # Content-based
+    with open(file_path) as f:
+        first_line = f.readline()
+        delimiter = '\t' if '\t' in first_line else ','
+```
+
+**`parse_file(file_path)`**: Auto-detect format and route to appropriate parser:
+```python
+suffix = Path(file_path).suffix.lower()
+
+if suffix == ".mztab":
+    return self.parse_mztab(file_path)
+elif suffix in [".csv", ".tsv", ".txt"]:
+    return self.parse_tabular(file_path)
+else:
+    raise ValueError(f"Unsupported format: {suffix}")
+```
+
+**Testing Strategy:**
+
+Created comprehensive test suite with **8 test cases**:
+
+1. **`test_parser_initialization`**: Verify object creation
+2. **`test_parse_mztab`**: Parse complete mzTab with protein section
+3. **`test_parse_mztab_metadata`**: Extract metadata dictionary
+4. **`test_parse_csv`**: Parse comma-separated values
+5. **`test_parse_tsv`**: Parse tab-separated values
+6. **`test_auto_detect_file_type`**: Verify format auto-detection
+7. **`test_invalid_file`**: Error handling for missing files
+8. **`test_empty_mztab`**: Handle files with metadata but no data
+
+**Using tmp_path Fixture:**
+```python
+def test_parse_mztab(self, tmp_path):
+    # Create test file in temporary directory
+    mztab_file = tmp_path / "test.mztab"
+    mztab_file.write_text(mztab_content)
+    
+    # Parse and verify
+    df = parser.parse_mztab(str(mztab_file))
+    assert len(df) == 3
+```
+
+**What I Learned:**
+
+**Standard File Formats:**
+- Standardization is crucial in bioinformatics (enables tool interoperability)
+- mzTab balances human-readability with machine-parseability
+- Tab-delimited formats are simple but effective
+
+**Parsing Strategies:**
+- **Line-by-line parsing** better for large files than loading entire file
+- **Prefix-based routing** (MTD, PRH, PRT) makes parsing straightforward
+- **Section accumulation** (collect all proteins, then convert to DataFrame at end)
+
+**Error Handling:**
+- Always check file existence before parsing
+- Return empty DataFrame for valid but data-less files (not error)
+- Raise specific errors (`FileNotFoundError`, `ValueError`) for different failure modes
+
+**Testing with Fixtures:**
+- `tmp_path` pytest fixture creates isolated test directories
+- Write test data to temp files (auto-cleaned after test)
+- Tests are independent, can run in any order
+
+**Challenges & Solutions:**
+
+1. **Challenge**: mzTab can have multiple sections (protein, peptide, PSM) - which to return?
+   - Solution: Return protein section by default (most common), can add methods for peptides/PSMs later
+
+2. **Challenge**: How to handle tabs in field values?
+   - Solution: Use `'\t'.join(fields[2:])` to rejoin multi-field values
+
+3. **Challenge**: Empty files or files with only metadata
+   - Solution: Return empty DataFrame (len=0) rather than error - allows graceful handling
+
+**Code Coverage:**
+- FileParser: 79% coverage (97 statements, 20 missed)
+- All 8 tests passing in <1 second
+
+**Files Modified:**
+- `src/data_acquisition/file_parser.py` - Implemented `parse_mztab()`, `get_mztab_metadata()`, `parse_tabular()` methods
+- `tests/test_data_acquisition/test_file_parser.py` - Created comprehensive test suite with 8 test cases
+
+**What This Enables:**
+
+With file parsing implemented, we can now:
+1. Download datasets from PRIDE (Tasks 2.1-2.5 ✓)
+2. Parse the downloaded files (Tasks 2.6-2.7 ✓)
+3. Next: Process the data (Epic 3)
+
+**Resources:**
+- [mzTab Specification](https://github.com/HUPO-PSI/mzTab)
+- [mzTab 1.0 Paper](http://www.mcponline.org/content/early/2014/06/30/mcp.O113.036681.abstract)
+- [Pandas read_csv documentation](https://pandas.pydata.org/docs/reference/api/pandas.read_csv.html)
+
+**Next Steps:**
+- Task 2.8: Add retry logic for API failures
+- Task 2.9: Additional unit tests (already have good coverage)
+- Task 2.10: Create demo notebook showing download → parse workflow
 
 ---
 
