@@ -1,0 +1,50 @@
+[
+  {
+    "fileName": "PRIDE_Exp_Complete_Ac_22134.pride.mztab.gz",
+    "fileSizeBytes": 497985,
+    "fileCategory": "OTHER",
+    "downloadUrl": "ftp://ftp.pride.ebi.ac.uk/pride/data/archive/2012/03/PXD000001/generated/PRIDE_Exp_Complete_Ac_22134.pride.mztab.gz"
+  },
+  {
+    "fileName": "PRIDE_Exp_Complete_Ac_22134.pride.mgf.gz",
+    "fileSizeBytes": 16448103,
+    "fileCategory": "PEAK",
+    "downloadUrl": "ftp://ftp.pride.ebi.ac.uk/pride/data/archive/2012/03/PXD000001/generated/PRIDE_Exp_Complete_Ac_22134.pride.mgf.gz"
+  },
+  {
+    "fileName": "TMT_Erwinia_1uLSike_Top10HCD_isol2_45stepped_60min_01.mzXML",
+    "fileSizeBytes": 243031280,
+    "fileCategory": "PEAK",
+    "downloadUrl": "ftp://ftp.pride.ebi.ac.uk/pride/data/archive/2012/03/PXD000001/TMT_Erwinia_1uLSike_Top10HCD_isol2_45stepped_60min_01.mzXML"
+  },
+  {
+    "fileName": "erwinia_carotovora.fasta",
+    "fileSizeBytes": 1657668,
+    "fileCategory": "OTHER",
+    "downloadUrl": "ftp://ftp.pride.ebi.ac.uk/pride/data/archive/2012/03/PXD000001/erwinia_carotovora.fasta"
+  },
+  {
+    "fileName": "TMT_Erwinia_1uLSike_Top10HCD_isol2_45stepped_60min_01.raw",
+    "fileSizeBytes": 220475548,
+    "fileCategory": "RAW",
+    "downloadUrl": "ftp://ftp.pride.ebi.ac.uk/pride/data/archive/2012/03/PXD000001/TMT_Erwinia_1uLSike_Top10HCD_isol2_45stepped_60min_01.raw"
+  },
+  {
+    "fileName": "F063721.dat-mztab.txt",
+    "fileSizeBytes": 304798,
+    "fileCategory": "OTHER",
+    "downloadUrl": "ftp://ftp.pride.ebi.ac.uk/pride/data/archive/2012/03/PXD000001/F063721.dat-mztab.txt"
+  },
+  {
+    "fileName": "PRIDE_Exp_Complete_Ac_22134.xml.gz",
+    "fileSizeBytes": 10677205,
+    "fileCategory": "RESULT",
+    "downloadUrl": "ftp://ftp.pride.ebi.ac.uk/pride/data/archive/2012/03/PXD000001/PRIDE_Exp_Complete_Ac_22134.xml.gz"
+  },
+  {
+    "fileName": "F063721.dat",
+    "fileSizeBytes": 21185462,
+    "fileCategory": "SEARCH",
+    "downloadUrl": "ftp://ftp.pride.ebi.ac.uk/pride/data/archive/2012/03/PXD000001/F063721.dat"
+  }
+]

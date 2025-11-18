@@ -120,13 +120,23 @@ class FileParser:
                 elif prefix == 'PSM':
                     psm_rows.append(fields[1:])
         
-        # Convert protein data to DataFrame
+        # Convert protein data to DataFrame (preferred)
         if protein_rows and protein_header:
             df = pd.DataFrame(protein_rows, columns=protein_header)
             logger.info(f"Parsed {len(df)} proteins from mzTab")
             return df
+        # Fall back to peptide data if no protein data
+        elif peptide_rows and peptide_header:
+            df = pd.DataFrame(peptide_rows, columns=peptide_header)
+            logger.info(f"Parsed {len(df)} peptides from mzTab (no protein data found)")
+            return df
+        # Fall back to PSM data if no protein or peptide data
+        elif psm_rows and psm_header:
+            df = pd.DataFrame(psm_rows, columns=psm_header)
+            logger.info(f"Parsed {len(df)} PSMs from mzTab (no protein/peptide data found)")
+            return df
         else:
-            logger.warning("No protein data found in mzTab file")
+            logger.warning("No data found in mzTab file")
             return pd.DataFrame()
     
     def get_mztab_metadata(self, file_path: str) -> dict:
